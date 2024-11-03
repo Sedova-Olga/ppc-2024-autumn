@@ -129,7 +129,7 @@ TEST(sedova_o_max_of_vector_elements_mpi, Test_1_1) {
   }
 }
 
-TEST(sedova_o_max_of_vector_elements_mpi, Test_Matrix_1_2) {
+TEST(sedova_o_max_of_vector_elements_mpi, Test_1_2) {
   const size_t row = 1;
   const size_t col = 2;
   const size_t spread = 30;
@@ -183,9 +183,9 @@ TEST(sedova_o_max_of_vector_elements_mpi, Test_Matrix_1_2) {
   }
 }
 
-TEST(sedova_o_max_of_vector_elements_mpi, Test_Matrix_3_1) {
-  const size_t row = 1;
-  const size_t col = 2;
+TEST(sedova_o_max_of_vector_elements_mpi, Test_3_3) {
+  const size_t row = 3;
+  const size_t col = 3;
   const size_t spread = 30;
 
   boost::mpi::communicator world;
