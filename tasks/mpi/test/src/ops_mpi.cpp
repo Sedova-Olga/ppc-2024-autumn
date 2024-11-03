@@ -1,11 +1,11 @@
 // Copyright 2024 Sedova Olga
-#include "mpi/sedova_o_max_of_vector_elements/include/ops_mpi.hpp"
+#include "mpi/test/include/ops_mpi.hpp"
 
 #include <mpi.h>
 
 #include <random>
 
-int find_max_of_matrix(const std::vector<int> &matrix) {
+int sedova_o_max_of_vector_elements_mpi::find_max_of_matrix(std::vector<int> &matrix) {
   if (matrix.empty()) {
     return std::numeric_limits<int>::min();  
   }
