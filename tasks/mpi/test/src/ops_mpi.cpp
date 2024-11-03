@@ -7,7 +7,7 @@
 
 int sedova_o_max_of_vector_elements_mpi::find_max_of_matrix(std::vector<int> &matrix) {
   if (matrix.empty()) {
-    return std::numeric_limits<int>::min();  
+    return std::numeric_limits<int>::min();
   }
   auto max_it = std::max_element(matrix.begin(), matrix.end());
   return *max_it;
