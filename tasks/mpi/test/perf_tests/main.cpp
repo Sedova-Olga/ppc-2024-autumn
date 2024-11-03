@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "core/perf/include/perf.hpp"
-#include "mpi/sedova_o_max_of_vector_elements/include/ops_mpi.hpp"
+#include "mpi/test/include/ops_mpi.hpp"
 
 std::vector<int> generate_random_vector(size_t size, size_t value) {
   std::random_device dev;
@@ -24,7 +24,7 @@ std::vector<std::vector<int>> generate_random_matrix(size_t rows, size_t cols, s
   return matrix;
 }
 
-TEST(sedova_o_max_of_vector_elements_mpi, test_pipeline_run) {
+TEST(sedova_o_max_of_vector_elements_mpi1, test_pipeline_run) {
   size_t rows = 7000;
   size_t cols = 7000;
   int value = 7000;
@@ -77,7 +77,7 @@ TEST(sedova_o_max_of_vector_elements_mpi, test_pipeline_run) {
   }
 }
 
-TEST(sedova_o_max_of_vector_elements_mpi, test_task_run) {
+TEST(sedova_o_max_of_vector_elements_mpi1, test_task_run) {
   size_t rows = 7000;
   size_t cols = 7000;
   int value = 7000;
