@@ -1,119 +1,150 @@
-// Copyright 2024 Sedova Olga
-#include "mpi/test/include/ops_mpi.hpp"
+﻿﻿#include "mpi/sedova_o_vertical_ribbon_scheme/include/ops_mpi.hpp"
 
-#include <mpi.h>
-
+#include <algorithm>
+#include <boost/serialization/array.hpp>
+#include <boost/serialization/vector.hpp>
+#include <functional>
 #include <random>
+#include <string>
+#include <thread>
+#include <vector>
 
-int sedova_o_max_of_vector_elements_mpi::find_max_of_matrix(std::vector<int> &matrix) {
-  if (matrix.empty()) {
-    return std::numeric_limits<int>::min();
+bool sedova_o_vertical_ribbon_scheme_mpi::ParallelMPI::validation() {
+  internal_order_test();
+  if (!taskData) {
+    return false;
   }
-  auto max_it = std::max_element(matrix.begin(), matrix.end());
-  return *max_it;
-}
-
-bool sedova_o_max_of_vector_elements_mpi::TestMPITaskSequential::pre_processing() {
-  internal_order_test();
-  input_ = std::vector<int>(taskData->inputs_count[0] * taskData->inputs_count[1]);
-  for (unsigned int i = 0; i < taskData->inputs_count[0]; i++) {
-    auto *input_data = reinterpret_cast<int *>(taskData->inputs[i]);
-    for (unsigned int j = 0; j < taskData->inputs_count[1]; j++) {
-      input_[i * taskData->inputs_count[1] + j] = input_data[j];
-    }
+  if (taskData->inputs[0] == nullptr || taskData->inputs[1] == nullptr) {
+    return false;
   }
-  return true;
+  return taskData->inputs_count[0] > 0 && taskData->inputs_count[1] > 0 &&
+         taskData->inputs_count[0] % taskData->inputs_count[1] == 0 &&
+         taskData->outputs_count[0] == taskData->inputs_count[0] / taskData->inputs_count[1];
 }
 
-bool sedova_o_max_of_vector_elements_mpi::TestMPITaskSequential::validation() {
+bool sedova_o_vertical_ribbon_scheme_mpi::ParallelMPI::pre_processing() {
   internal_order_test();
-  return taskData->inputs_count[0] >= 1 && taskData->inputs_count[1] >= 1 && taskData->outputs_count[0] == 1;
-}
-
-bool sedova_o_max_of_vector_elements_mpi::TestMPITaskSequential::run() {
-  internal_order_test();
-  res_ = sedova_o_max_of_vector_elements_mpi::find_max_of_matrix(input_);
-  return true;
-}
-
-bool sedova_o_max_of_vector_elements_mpi::TestMPITaskSequential::post_processing() {
-  internal_order_test();
-  reinterpret_cast<int *>(taskData->outputs[0])[0] = res_;
-  return true;
-}
-
-bool sedova_o_max_of_vector_elements_mpi::TestMPITaskParallel::pre_processing() {
-  internal_order_test();
-
   if (world.rank() == 0) {
-    unsigned int rows = taskData->inputs_count[0];
-    unsigned int cols = taskData->inputs_count[1];
+  int* matrix = reinterpret_cast<int*>(taskData->inputs[0]);
+  int* vector = reinterpret_cast<int*>(taskData->inputs[1]);
 
-    input_ = std::vector<int>(rows * cols);
+  int count = taskData->inputs_count[0];
+  rows_ = taskData->inputs_count[1];
+  cols_ = count / rows_;
 
-    for (unsigned int i = 0; i < rows; i++) {
-      auto *input_data = reinterpret_cast<int *>(taskData->inputs[i]);
-      for (unsigned int j = 0; j < cols; j++) {
-        input_[i * cols + j] = input_data[j];
+  input_matrix_1.assign(matrix, matrix + count);
+  input_vector_1.assign(vector, vector + rows_);
+  result_vector_.resize(cols_, 0);
+
+  proc.resize(world.size(), 0);
+  off.resize(world.size(), -1);
+
+  if (world.size() > rows_) {
+    for (int i = 0; i < rows_; ++i) {
+      off[i] = i * cols_;
+      proc[i] = cols_;
+    }
+  } else {
+    int count_proc = rows_ / world.size();
+    int surplus = rows_ % world.size();
+    int offset = 0;
+    for (int i = 0; i < world.size(); ++i) {
+      if (surplus > 0) {
+        proc[i] = (count_proc + 1) * cols_;
+        --surplus;
+      } else {
+        proc[i] = count_proc * cols_;
       }
+      off[i] = offset;
+      offset += proc[i];
     }
   }
-
-  return true;
-}
-
-bool sedova_o_max_of_vector_elements_mpi::TestMPITaskParallel::validation() {
-  internal_order_test();
-  return (world.rank() != 0) ||
-         ((taskData->outputs_count[0] == 1) && (taskData->inputs_count[0] > 0) && (!taskData->inputs.empty()));
-}
-
-bool sedova_o_max_of_vector_elements_mpi::TestMPITaskParallel::run() {
-  internal_order_test();
-  unsigned int a = 0;
-  if (world.rank() == 0) {
-    unsigned int rows = taskData->inputs_count[0];
-    unsigned int cols = taskData->inputs_count[1];
-    a = rows * cols / world.size();
-    int b = rows * cols % world.size() + 1;
-    if (a == 0) {
-      for (int i = 1; i < world.size(); i++) {
-        world.send(i, 0, 0);
-      }
-      linput_ = std::vector<int>(input_.begin(), input_.begin() + b - 1);
-      res_ = sedova_o_max_of_vector_elements_mpi::find_max_of_matrix(linput_);
-      return true;
-    }
-    for (int i = 1; i < world.size(); i++) {
-      world.send(i, 0, a + (int)(i < b));
-    }
-    for (int i = 1; i < b; i++) {
-      world.send(i, 0, input_.data() + a * i + i - 1, a + 1);
-    }
-    for (int i = b; i < world.size(); i++) {
-      world.send(i, 0, input_.data() + a * i + b - 1, a);
-    }
-    linput_ = std::vector<int>(input_.begin(), input_.begin() + a);
   }
-
   if (world.rank() != 0) {
-    world.recv(0, 0, a);
-    if (a == 0) {
-      return true;
-    }
-    linput_ = std::vector<int>(a);
-    world.recv(0, 0, input_.data(), a);
+    input_matrix_1.resize(cols_ * rows_, 0);
+    input_vector_1.resize(rows_, 0);
+    res.resize(cols_, 0);
   }
-
-  int lres_ = sedova_o_max_of_vector_elements_mpi::find_max_of_matrix(input_);
-  reduce(world, lres_, res_, boost::mpi::maximum<int>(), 0);
   return true;
 }
-bool sedova_o_max_of_vector_elements_mpi::TestMPITaskParallel::post_processing() {
+
+bool sedova_o_vertical_ribbon_scheme_mpi::ParallelMPI::run() {
+  internal_order_test();
+  boost::mpi::broadcast(world, rows_, 0);
+  boost::mpi::broadcast(world, cols_, 0);
+  boost::mpi::broadcast(world, proc, 0);
+  boost::mpi::broadcast(world, off, 0);
+  boost::mpi::broadcast(world, input_matrix_1, 0);
+  boost::mpi::broadcast(world, input_vector_1, 0);
+  int proc_start = off[world.rank()] / cols_;
+  int matrix_start_ = proc[world.rank()] / cols_;
+  std::vector<int> proc_result(cols_, 0);
+
+  for (int i = 0; i < matrix_start_; ++i) {
+    for (int j = 0; j < cols_; ++j) {
+      int prog_start = proc_start + i;
+      int matrix = input_matrix_1[cols_ * prog_start + j];
+      int vector = input_vector_1[prog_start];
+      proc_result[j] += matrix * vector;
+    }
+  }
+
+  boost::mpi::reduce(world, proc_result.data(), cols_, result_vector_.data(), std::plus<>(), 0);
+
+  return true;
+}
+
+bool sedova_o_vertical_ribbon_scheme_mpi::ParallelMPI::post_processing() {
+  internal_order_test();
+  if (world.rank() == 0) {
+    int* answer = reinterpret_cast<int*>(taskData->outputs[0]);
+    std::copy(result_vector_.begin(), result_vector_.end(), answer);
+  }
+  return true;
+}
+
+bool sedova_o_vertical_ribbon_scheme_mpi::SequentialMPI::validation() {
+  internal_order_test();
+  if (!taskData) {
+    return false;
+  }
+  if (taskData->inputs[0] == nullptr || taskData->inputs[1] == nullptr) {
+    return false;
+  }
+  return taskData->inputs_count[0] > 0 && taskData->inputs_count[1] > 0 &&
+         taskData->inputs_count[0] % taskData->inputs_count[1] == 0 &&
+         taskData->outputs_count[0] == taskData->inputs_count[0] / taskData->inputs_count[1];
+}
+
+bool sedova_o_vertical_ribbon_scheme_mpi::SequentialMPI::pre_processing() {
   internal_order_test();
 
-  if (world.rank() == 0) {
-    reinterpret_cast<int *>(taskData->outputs[0])[0] = res_;
+  matrix_ = reinterpret_cast<int*>(taskData->inputs[0]);
+  vector_ = reinterpret_cast<int*>(taskData->inputs[1]);
+  int count = taskData->inputs_count[0];
+  rows_ = taskData->inputs_count[1];
+  cols_ = count / rows_;
+  result_vector_.assign(cols_, 0);
+
+  return true;
+}
+
+bool sedova_o_vertical_ribbon_scheme_mpi::SequentialMPI::run() {
+  internal_order_test();
+
+  for (int i = 0; i < rows_; ++i) {
+    for (int j = 0; j < cols_; ++j) {
+      result_vector_[j] += matrix_[i * cols_ + j] * vector_[i];
+    }
   }
+  return true;
+}
+
+bool sedova_o_vertical_ribbon_scheme_mpi::SequentialMPI::post_processing() {
+  internal_order_test();
+
+  int* output_data = reinterpret_cast<int*>(taskData->outputs[0]);
+  std::copy(result_vector_.begin(), result_vector_.end(), output_data);
+
   return true;
 }
