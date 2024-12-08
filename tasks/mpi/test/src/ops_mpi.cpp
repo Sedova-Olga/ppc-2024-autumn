@@ -1,4 +1,4 @@
-﻿﻿#include "mpi/sedova_o_vertical_ribbon_scheme/include/ops_mpi.hpp"
+﻿﻿#include "mpi/test/include/ops_mpi.hpp"
 
 #include <algorithm>
 #include <boost/serialization/array.hpp>

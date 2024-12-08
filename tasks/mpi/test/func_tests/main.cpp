@@ -5,7 +5,7 @@
 #include <random>
 #include <vector>
 
-#include "mpi/sedova_o_vertical_ribbon_scheme/include/ops_mpi.hpp"
+#include "mpi/test/include/ops_mpi.hpp"
 
 void get_random_matrix(std::vector<int> &matrix, int a, int b) {
   std::random_device dev;
